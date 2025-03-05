@@ -25,14 +25,14 @@ public interface FileRepository extends JpaRepository<File, Long> {
     @Query("SELECT f FROM File f WHERE " +
             "(:extensionType IS NULL OR f.extensionType = :extensionType) AND " +
             "(:ownerId IS NULL OR f.ownerId = :ownerId) AND " +
-            "(:filterDate IS NULL OR " +
-            "(:dateFilterMode = 'created' AND f.createdDate = :filterDate) OR " +
-            "(:dateFilterMode = 'updated' AND f.lastModifiedDate = :filterDate))")
-    //whitelist extension file, size file, MIME TYPE
+            "(:dateFilterMode IS NULL OR "+
+            "((:dateFilterMode = 'created' AND f.createdDate >= :startDate AND f.createdDate <= :endDate) OR "+
+            "(:dateFilterMode = 'updated' AND f.lastModifiedDate >= :startDate AND f.lastModifiedDate <= :endDate)))"
+    )
     Page<File> searchPublicFiles(@Param("extensionType") String extensionType,
                                  @Param("ownerId") String ownerId,
                                  @Param("dateFilterMode") String dateFilterMode,
-                                 @Param("filterDate") Instant filterDate,
+                                 @Param("startDate") Instant startDate,
+                                 @Param("endDate") Instant endDate,
                                  Pageable pageable);
-
 }
