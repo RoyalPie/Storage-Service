@@ -15,13 +15,13 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -48,7 +48,7 @@ public class PublicFileController {
             @RequestParam(required = false) Integer width,
             @RequestParam(required = false) Integer height) {
         try {
-            byte[] imageBytes = imageService.getImage(id, width, height, ratio);
+            byte[] imageBytes = imageService.getImage(id, width, height, ratio, "public");
 
             return ResponseEntity.ok().body(imageBytes);
         } catch (FileNotFoundException e) {
@@ -59,7 +59,7 @@ public class PublicFileController {
     }
 
     @PostMapping("/upload")
-    public ResponseEntity<?> uploadFile(@RequestParam("file") MultipartFile[] files) throws IOException {
+    public ResponseEntity<?> uploadFile(@RequestParam("file") MultipartFile[] files, Authentication authentication) throws IOException {
         if (files.length == 0) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("File is empty!");
         }
@@ -84,7 +84,7 @@ public class PublicFileController {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                         .body("Invalid file extension! Allowed extensions: " + fileUploadConfig.getAllowedExtensions());
             }
-            FileResponse response = fileService.uploadFile(file, "truongtk1711@gmail.com", "public");
+            FileResponse response = fileService.uploadFile(file, authentication.getPrincipal().toString(), "public");
             responses.add(response);
         }
 
@@ -105,19 +105,19 @@ public class PublicFileController {
         String sortDir = sortValues.split(",")[1];
         Sort sort = sortDir.equalsIgnoreCase("desc") ? Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
         Pageable pageable = PageRequest.of(page, size, sort);
-        Page<FileResponse> files = fileService.getPublicFiles(extensionType, ownerId, dateFilterMode, filterDate, pageable);
+        Page<FileResponse> files = fileService.getFiles(extensionType, ownerId, dateFilterMode, filterDate, "public", pageable);
         return ResponseEntity.ok(files);
     }
 
     @DeleteMapping("/delete-file/{id}")
-    public ResponseEntity<?> deleteFile(@PathVariable Long id) {
-        fileService.deleteFile(id);
+    public ResponseEntity<?> deleteFile(@PathVariable Long id, Authentication authentication) {
+        fileService.deletePublicFile(id, authentication.getPrincipal().toString());
         return ResponseEntity.ok("Successful delete");
     }
 
     @GetMapping("/download/{fileId}")
     public ResponseEntity<?> downloadFile(@PathVariable Long fileId) {
-        FileDownloadDTO fileDownload = fileService.downloadFile(fileId);
+        FileDownloadDTO fileDownload = fileService.downloadPublicFile(fileId);
 
         ByteArrayResource resource = new ByteArrayResource(fileDownload.getFileData());
 

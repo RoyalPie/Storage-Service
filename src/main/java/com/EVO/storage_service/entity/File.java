@@ -21,7 +21,7 @@ public class File extends Auditable{
     private String extensionType;
 
     @Column(nullable = false, unique = true)
-    private String url;
+    private String storageFileName;
 
     @Column(nullable = false)
     private String ownerId;

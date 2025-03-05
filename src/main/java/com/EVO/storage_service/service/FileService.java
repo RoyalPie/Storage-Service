@@ -4,7 +4,6 @@ import com.EVO.storage_service.dto.FileDownloadDTO;
 import com.EVO.storage_service.dto.FileResponse;
 import com.EVO.storage_service.entity.File;
 import com.EVO.storage_service.repository.FileRepository;
-import com.EVO.storage_service.utils.FileUtils;
 import lombok.RequiredArgsConstructor;
 import org.apache.tika.Tika;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,19 +16,18 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.nio.file.*;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.util.UUID;
+import java.util.Objects;
+
+import static com.EVO.storage_service.utils.FileUtils.getReadableFileSize;
+import static com.EVO.storage_service.utils.FileUtils.hashMD5;
 
 @Service
 @RequiredArgsConstructor
 public class FileService {
     private final FileRepository fileRepository;
 
-    @Value("${file.storage.public-path}")
+    @Value("${file.storage.path}")
     private String storagePath;
-    @Value("${file.storage.get-path}")
-    private String getFilePath;
 
     public FileResponse uploadFile(MultipartFile file, String ownerId, String accessType) throws IOException {
         if (file.isEmpty()) {
@@ -38,7 +36,7 @@ public class FileService {
 
         String originalFileName = file.getOriginalFilename();
         String fileExtension = originalFileName.substring(originalFileName.lastIndexOf("."));
-        String fileName = UUID.randomUUID() + fileExtension;
+        String fileName = hashMD5(originalFileName) + fileExtension;
 
         Path directory = Paths.get(storagePath);
         if (!Files.exists(directory)) {
@@ -53,19 +51,17 @@ public class FileService {
         String MIMEType = tika.detect(filePath.toFile());
 
         // Get file size
-        String fileSize = FileUtils.getReadableFileSize(Files.size(filePath));
-
-        String url = accessType + "/" + fileName;
+        String fileSize = getReadableFileSize(Files.size(filePath));
 
         // Save file metadata to DB
-        File fileEntity = new File(null, originalFileName, fileExtension, url, ownerId, accessType, fileSize, MIMEType);
+        File fileEntity = new File(null, originalFileName, fileExtension, fileName, ownerId, accessType, fileSize, MIMEType);
         fileRepository.save(fileEntity);
 
         return new FileResponse(originalFileName, fileEntity.getOwnerId(), fileEntity.getAccessType(), fileSize);
     }
 
-    public Page<FileResponse> getPublicFiles(String extensionType, String ownerId,
-                                             String dateFilterMode, String filterDate, Pageable pageable) {
+    public Page<FileResponse> getFiles(String extensionType, String ownerId,
+                                             String dateFilterMode, String filterDate, String accessType, Pageable pageable) {
         Instant startDate = null;
         Instant endDate = null;
         if(!(filterDate == null)){
@@ -73,7 +69,7 @@ public class FileService {
             endDate = Instant.parse(filterDate+"T23:59:59Z");
         }
 
-        Page<File> files = fileRepository.searchPublicFiles(extensionType, ownerId, dateFilterMode, startDate, endDate, pageable);
+        Page<File> files = fileRepository.searchPublicFiles(accessType,extensionType, ownerId, dateFilterMode, startDate, endDate, pageable);
 
         return files.map(file -> FileResponse.builder()
                 .fileName(file.getFileName())
@@ -85,25 +81,38 @@ public class FileService {
     }
 
     @Transactional
-    public void deleteFile(Long fileId) {
-        File file = fileRepository.findById(fileId)
+    public void deletePublicFile(Long fileId, String ownerId) {
+        File file = fileRepository.findPublicFile(fileId)
                 .orElseThrow(() -> new RuntimeException("File not found with ID: " + fileId));
-        Path filePath = Paths.get(getFilePath + file.getUrl());
+        if(Objects.equals(file.getOwnerId(), ownerId)){
+            Path filePath = Paths.get(storagePath + file.getStorageFileName());
+            try {
+                Files.deleteIfExists(filePath);
+            } catch (IOException e) {
+                throw new RuntimeException("Error deleting file: " + file.getFileName(), e);
+            }
+            fileRepository.delete(file);
+        }else throw new RuntimeException("Wrong accessType or Wrong Owner");
+    }
+    @Transactional
+    public void deletePrivateFile(Long fileId) {
+        File file = fileRepository.findPrivateFile(fileId)
+                .orElseThrow(() -> new RuntimeException("File not found with ID: " + fileId));
+
+        Path filePath = Paths.get(storagePath + file.getStorageFileName());
         try {
             Files.deleteIfExists(filePath);
         } catch (IOException e) {
             throw new RuntimeException("Error deleting file: " + file.getFileName(), e);
         }
-
         fileRepository.delete(file);
     }
-
-    public FileDownloadDTO downloadFile(Long fileId) {
-        File file = fileRepository.findById(fileId)
+    public FileDownloadDTO downloadPublicFile(Long fileId) {
+        File file = fileRepository.findPublicFile(fileId)
                 .orElseThrow(() -> new RuntimeException("File not found with ID: " + fileId));
 
         try {
-            Path filePath = Paths.get(getFilePath + file.getUrl());
+            Path filePath = Paths.get(storagePath + file.getStorageFileName());
             byte[] fileData = Files.readAllBytes(filePath);
 
             return new FileDownloadDTO(file.getFileName(), file.getExtensionType(), fileData);
