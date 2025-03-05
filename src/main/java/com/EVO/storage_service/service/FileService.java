@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.nio.file.*;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
 @Service
@@ -64,9 +65,15 @@ public class FileService {
     }
 
     public Page<FileResponse> getPublicFiles(String extensionType, String ownerId,
-                                             String dateFilterMode, Instant filterDate, Pageable pageable) {
+                                             String dateFilterMode, String filterDate, Pageable pageable) {
+        Instant startDate = null;
+        Instant endDate = null;
+        if(!(filterDate == null)){
+            startDate = Instant.parse(filterDate+"T00:00:00Z");
+            endDate = Instant.parse(filterDate+"T23:59:59Z");
+        }
 
-        Page<File> files = fileRepository.searchPublicFiles(extensionType, ownerId, dateFilterMode, filterDate, pageable);
+        Page<File> files = fileRepository.searchPublicFiles(extensionType, ownerId, dateFilterMode, startDate, endDate, pageable);
 
         return files.map(file -> FileResponse.builder()
                 .fileName(file.getFileName())

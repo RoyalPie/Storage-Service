@@ -1,10 +1,10 @@
 package com.EVO.storage_service.controller;
 
+import com.EVO.storage_service.config.FileUploadConfig;
 import com.EVO.storage_service.dto.FileDownloadDTO;
 import com.EVO.storage_service.dto.FileResponse;
 import com.EVO.storage_service.service.FileService;
 import com.EVO.storage_service.service.ImageService;
-import jakarta.annotation.Resource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.data.domain.Page;
@@ -15,16 +15,18 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.time.Instant;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+
+import static com.EVO.storage_service.utils.FileUtils.isValidExtension;
 
 @RestController
 @RequestMapping("/api/public")
@@ -35,8 +37,11 @@ public class PublicFileController {
     @Autowired
     private ImageService imageService;
 
+    @Autowired
+    private FileUploadConfig fileUploadConfig;
+
     @GetMapping(value = "/image/{id}",
-                produces = MediaType.IMAGE_PNG_VALUE)
+            produces = MediaType.IMAGE_PNG_VALUE)
     public ResponseEntity<byte[]> viewImage(
             @PathVariable Long id,
             @RequestParam(required = false) Double ratio,
@@ -45,8 +50,7 @@ public class PublicFileController {
         try {
             byte[] imageBytes = imageService.getImage(id, width, height, ratio);
 
-            return ResponseEntity.ok()
-                    .body(imageBytes);
+            return ResponseEntity.ok().body(imageBytes);
         } catch (FileNotFoundException e) {
             return ResponseEntity.notFound().build();
         } catch (IOException e) {
@@ -55,26 +59,47 @@ public class PublicFileController {
     }
 
     @PostMapping("/upload")
-    public List<FileResponse> uploadFile(@RequestParam("file") MultipartFile[] files) throws IOException {
+    public ResponseEntity<?> uploadFile(@RequestParam("file") MultipartFile[] files) throws IOException {
+        if (files.length == 0) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("File is empty!");
+        }
+
         List<FileResponse> responses = new ArrayList<>();
 
         for (MultipartFile file : files) {
+            long fileSizeMB = file.getSize();
+            if (fileSizeMB > fileUploadConfig.getMaxSize()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body("File size exceeds the allowed limit of " + fileUploadConfig.getMaxSize() / (1024 * 1024) + "MB");
+            }
+
+            String mimeType = file.getContentType();
+            if (mimeType == null || !fileUploadConfig.getAllowedMimeTypes().contains(mimeType)) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body("Invalid file type! Allowed types: " + fileUploadConfig.getAllowedMimeTypes());
+            }
+
+            String fileName = StringUtils.cleanPath(Objects.requireNonNull(file.getOriginalFilename()));
+            if (!isValidExtension(fileName, fileUploadConfig.getAllowedExtensions())) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body("Invalid file extension! Allowed extensions: " + fileUploadConfig.getAllowedExtensions());
+            }
             FileResponse response = fileService.uploadFile(file, "truongtk1711@gmail.com", "public");
             responses.add(response);
         }
 
-        return responses;
+        return ResponseEntity.ok(responses);
     }
+
     @GetMapping("/files")
     public ResponseEntity<Page<FileResponse>> getPublicFiles(
             @RequestParam(required = false) String extensionType,
             @RequestParam(required = false) String ownerId,
-            @RequestParam(defaultValue = "created") String dateFilterMode,
-            @RequestParam(required = false) Instant filterDate,
+            @RequestParam(required = false) String dateFilterMode,
+            @RequestParam(required = false) String filterDate,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "createdDate,desc") String sortValues) {
-
 
         String sortBy = sortValues.split(",")[0];
         String sortDir = sortValues.split(",")[1];
@@ -83,11 +108,13 @@ public class PublicFileController {
         Page<FileResponse> files = fileService.getPublicFiles(extensionType, ownerId, dateFilterMode, filterDate, pageable);
         return ResponseEntity.ok(files);
     }
+
     @DeleteMapping("/delete-file/{id}")
-    public ResponseEntity<?> deleteFile(@PathVariable Long id){
+    public ResponseEntity<?> deleteFile(@PathVariable Long id) {
         fileService.deleteFile(id);
         return ResponseEntity.ok("Successful delete");
     }
+
     @GetMapping("/download/{fileId}")
     public ResponseEntity<?> downloadFile(@PathVariable Long fileId) {
         FileDownloadDTO fileDownload = fileService.downloadFile(fileId);
