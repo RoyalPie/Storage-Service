@@ -82,7 +82,6 @@ public class JwtFilter extends OncePerRequestFilter {
     private boolean isKeycloakToken(String token) {
         try {
             DecodedJWT decodedJWT = JWT.decode(token);
-            System.out.println("http://localhost:8080/realms/testing-realm".equals(decodedJWT.getIssuer()));
             return "http://localhost:8080/realms/testing-realm".equals(decodedJWT.getIssuer());
         } catch (Exception e) {
             return false;
