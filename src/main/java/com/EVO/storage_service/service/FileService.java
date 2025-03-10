@@ -57,7 +57,37 @@ public class FileService {
         File fileEntity = new File(null, originalFileName, fileExtension, fileName, ownerId, accessType, fileSize, MIMEType);
         fileRepository.save(fileEntity);
 
-        return new FileResponse(originalFileName, fileEntity.getOwnerId(), fileEntity.getAccessType(), fileSize);
+        return new FileResponse(originalFileName, fileEntity.getOwnerId(), fileEntity.getAccessType(), fileSize, null);
+    }
+    public FileResponse uploadImage(MultipartFile file, String ownerId, String accessType) throws IOException {
+        if (file.isEmpty()) {
+            throw new IllegalArgumentException("Cannot upload an empty file");
+        }
+
+        String originalFileName = file.getOriginalFilename();
+        String fileExtension = originalFileName.substring(originalFileName.lastIndexOf("."));
+        String fileName = hashMD5(originalFileName) + fileExtension;
+
+        Path directory = Paths.get(storagePath);
+        if (!Files.exists(directory)) {
+            Files.createDirectories(directory);
+        }
+
+        Path filePath = directory.resolve(fileName);
+        Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+
+        // Detect file type
+        Tika tika = new Tika();
+        String MIMEType = tika.detect(filePath.toFile());
+
+        // Get file size
+        String fileSize = getReadableFileSize(Files.size(filePath));
+
+        // Save file metadata to DB
+        File fileEntity = new File(null, originalFileName, fileExtension, fileName, ownerId, accessType, fileSize, MIMEType);
+        fileRepository.save(fileEntity);
+
+        return new FileResponse(originalFileName, fileEntity.getOwnerId(), fileEntity.getAccessType(), fileSize, "http://localhost:8083/api/public/image/"+fileName);
     }
 
     public Page<FileResponse> getFiles(String extensionType, String ownerId,

@@ -21,8 +21,8 @@ public class ImageService {
     @Autowired
     private FileRepository fileRepository;
 
-    public byte[] getImage(Long id, Integer width, Integer height, Double ratio, String accessType) throws IOException {
-        File imageOpt = fileRepository.findImage(id, accessType).orElseThrow(()->new FileNotFoundException("Image not found"));
+    public byte[] getImage(String name, Integer width, Integer height, Double ratio, String accessType) throws IOException {
+        File imageOpt = fileRepository.findImage(name, accessType).orElseThrow(()->new FileNotFoundException("Image not found"));
 
         java.io.File imageFile = new java.io.File(storagePath + imageOpt.getStorageFileName());
 

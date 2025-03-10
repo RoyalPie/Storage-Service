@@ -6,6 +6,7 @@ import com.EVO.storage_service.dto.FileResponse;
 import com.EVO.storage_service.service.FileService;
 import com.EVO.storage_service.service.ImageService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -40,15 +41,15 @@ public class PublicFileController {
     @Autowired
     private FileUploadConfig fileUploadConfig;
 
-    @GetMapping(value = "/image/{id}",
+    @GetMapping(value = "/image/{name}",
             produces = MediaType.IMAGE_PNG_VALUE)
     public ResponseEntity<byte[]> viewImage(
-            @PathVariable Long id,
+            @PathVariable String name,
             @RequestParam(required = false) Double ratio,
             @RequestParam(required = false) Integer width,
             @RequestParam(required = false) Integer height) {
         try {
-            byte[] imageBytes = imageService.getImage(id, width, height, ratio, "public");
+            byte[] imageBytes = imageService.getImage(name, width, height, ratio, "public");
 
             return ResponseEntity.ok().body(imageBytes);
         } catch (FileNotFoundException e) {
@@ -59,7 +60,7 @@ public class PublicFileController {
     }
 
     @PostMapping("/upload")
-    public ResponseEntity<?> uploadFile(@RequestParam("file") MultipartFile[] files, Authentication authentication) throws IOException {
+    public ResponseEntity<?> uploadFile(@RequestParam("file") MultipartFile[] files,@RequestParam(required = false, name="email") String email, Authentication authentication) throws IOException {
         if (files.length == 0) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("File is empty!");
         }
@@ -84,7 +85,39 @@ public class PublicFileController {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                         .body("Invalid file extension! Allowed extensions: " + fileUploadConfig.getAllowedExtensions());
             }
-            FileResponse response = fileService.uploadFile(file, authentication.getPrincipal().toString(), "public");
+            FileResponse response = fileService.uploadFile(file,email == null ? authentication.getPrincipal().toString() : email, "public");
+            responses.add(response);
+        }
+
+        return ResponseEntity.ok(responses);
+    }
+    @PostMapping("/upload-image")
+    public ResponseEntity<?> uploadProfileImage(@RequestParam("file") MultipartFile[] files,@RequestParam(required = false, name="email") String email, Authentication authentication) throws IOException {
+        if (files.length == 0) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("File is empty!");
+        }
+
+        List<FileResponse> responses = new ArrayList<>();
+
+        for (MultipartFile file : files) {
+            long fileSizeMB = file.getSize();
+            if (fileSizeMB > fileUploadConfig.getMaxSize()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body("File size exceeds the allowed limit of " + fileUploadConfig.getMaxSize() / (1024 * 1024) + "MB");
+            }
+
+            String mimeType = file.getContentType();
+            if (mimeType == null || !fileUploadConfig.getAllowedMimeTypes().contains(mimeType)) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body("Invalid file type! Allowed types: " + fileUploadConfig.getAllowedMimeTypes());
+            }
+
+            String fileName = StringUtils.cleanPath(Objects.requireNonNull(file.getOriginalFilename()));
+            if (!isValidExtension(fileName, fileUploadConfig.getAllowedExtensions())) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body("Invalid file extension! Allowed extensions: " + fileUploadConfig.getAllowedExtensions());
+            }
+            FileResponse response = fileService.uploadImage(file,email == null ? authentication.getPrincipal().toString() : email, "public");
             responses.add(response);
         }
 

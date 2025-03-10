@@ -102,12 +102,12 @@ public class PrivateFileController {
     @GetMapping(value = "/image/{id}",
             produces = MediaType.IMAGE_PNG_VALUE)
     public ResponseEntity<byte[]> viewImage(
-            @PathVariable Long id,
+            @PathVariable String name,
             @RequestParam(required = false) Double ratio,
             @RequestParam(required = false) Integer width,
             @RequestParam(required = false) Integer height) {
         try {
-            byte[] imageBytes = imageService.getImage(id, width, height, ratio, "private");
+            byte[] imageBytes = imageService.getImage(name, width, height, ratio, "private");
 
             return ResponseEntity.ok().body(imageBytes);
         } catch (FileNotFoundException e) {

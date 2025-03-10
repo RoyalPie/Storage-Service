@@ -14,5 +14,5 @@ public class FileResponse {
     private String ownerId;
     private String accessType;
     private String fileSize;
-
+    private String url;
 }

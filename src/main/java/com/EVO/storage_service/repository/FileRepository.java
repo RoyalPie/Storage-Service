@@ -22,8 +22,8 @@ public interface FileRepository extends JpaRepository<File, Long> {
     @Query("SELECT f FROM File f WHERE f.accessType = 'private' AND f.id = :id")
     Optional<File> findPrivateFile(@Param("id")Long id);
 
-    @Query("SELECT f FROM File f WHERE f.MIMEType LIKE 'image/%' AND f.id = :id AND f.accessType = :accessType")
-    Optional<File> findImage(@Param("id") Long id, @Param("accessType") String accessType);
+    @Query("SELECT f FROM File f WHERE f.MIMEType LIKE 'image/%' AND f.storageFileName = :name AND f.accessType = :accessType")
+    Optional<File> findImage(@Param("name") String name, @Param("accessType") String accessType);
 
     @Query("SELECT f FROM File f WHERE " +
             "(f.accessType = :accessType) AND " +
