@@ -7,6 +7,8 @@ import com.EVO.storage_service.entity.User;
 import com.EVO.storage_service.repository.UserRepository;
 import com.EVO.storage_service.security.CustomAuthenticationToken;
 import com.EVO.storage_service.service.JwtTokenBlackListService;
+import com.auth0.jwt.JWT;
+import com.auth0.jwt.interfaces.DecodedJWT;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -14,8 +16,12 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -34,7 +40,13 @@ public class JwtFilter extends OncePerRequestFilter {
     @Autowired
     private JwtTokenBlackListService blackListService;
 
+    private final JwtDecoder jwtDecoder;
+
     Logger logger = LoggerFactory.getLogger(JwtFilter.class);
+
+    public JwtFilter(JwtDecoder jwtDecoder) {
+        this.jwtDecoder = jwtDecoder;
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain) throws ServletException, IOException {
@@ -42,6 +54,10 @@ public class JwtFilter extends OncePerRequestFilter {
 
         if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
             String token = authorizationHeader.substring(7);
+            if (isKeycloakToken(token)) {
+                chain.doFilter(request, response);
+                return;
+            }
 
             try {
                 String email = jwtUtils.extractEmail(token);
@@ -61,6 +77,15 @@ public class JwtFilter extends OncePerRequestFilter {
         }
 
         chain.doFilter(request, response);
+    }
+
+    private boolean isKeycloakToken(String token) {
+        try {
+            DecodedJWT decodedJWT = JWT.decode(token);
+            return "http://localhost:8080/realms/testing-realm".equals(decodedJWT.getIssuer());
+        } catch (Exception e) {
+            return false;
+        }
     }
 
 }

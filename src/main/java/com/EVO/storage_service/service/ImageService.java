@@ -12,21 +12,19 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.util.Optional;
 
 @Service
 public class ImageService {
-    @Value("${file.storage.get-path}")
+    @Value("${file.storage.path}")
     private String storagePath;
 
     @Autowired
     private FileRepository fileRepository;
 
-    public byte[] getImage(Long id, Integer width, Integer height, Double ratio) throws IOException {
-        File imageOpt = fileRepository.findImage(id).orElseThrow(()->new FileNotFoundException("Image not found"));
+    public byte[] getImage(String name, Integer width, Integer height, Double ratio, String accessType) throws IOException {
+        File imageOpt = fileRepository.findImage(name, accessType).orElseThrow(()->new FileNotFoundException("Image not found"));
 
-        String url = imageOpt.getUrl();
-        java.io.File imageFile = new java.io.File(storagePath + url);
+        java.io.File imageFile = new java.io.File(storagePath + imageOpt.getStorageFileName());
 
         if (!imageFile.exists()) {
             throw new FileNotFoundException("Image not found in storage" );

@@ -1,5 +1,7 @@
 package com.EVO.storage_service.utils;
 
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.text.DecimalFormat;
 import java.util.Set;
 
@@ -17,4 +19,19 @@ public class FileUtils {
         String extension = fileName.substring(fileName.lastIndexOf(".") + 1).toLowerCase();
         return allowedExtensions.contains(extension);
     }
+    public static String hashMD5(String input) {
+        try {
+            String inputWithTime = input + System.currentTimeMillis(); // Append timestamp
+            MessageDigest md = MessageDigest.getInstance("MD5");
+            byte[] hash = md.digest(inputWithTime.getBytes());
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                hexString.append(String.format("%02x", b));
+            }
+            return hexString.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("MD5 algorithm not found", e);
+        }
+    }
+
 }
